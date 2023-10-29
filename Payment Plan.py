@@ -22,8 +22,8 @@ with open('../../Json/keys.json') as f:
     config = json.load(f)
 
 company_email = config['company_email']
-# emailUsed = config['jane_email']
-emailUsed = config['test_email']
+emailUsed = config['jane_email']
+# emailUsed = config['test_email']
 test_email = config['test_email']
 sheets_key = config['sheets_key']
 staff_name = config['staff_name']
@@ -71,7 +71,7 @@ class Email:
     def get_payment_count(self, first_name, due_date_list):
         payment_count = 0
         for y in range(1, len(due_date_list)):
-            if first_name == self.database.iloc[y]["First Name"] and self.database.iloc[y]["Status"] != "":
+            if first_name == self.database.iloc[y]["First Name"] and self.database.iloc[y]["Status"] != "" and self.database.iloc[y]["Status"] != "Non Tuition Fees" :
                 payment_count +=1
                 print(payment_count, "is payment count of ", first_name)
         return payment_count + 1
@@ -149,6 +149,7 @@ class Email:
         # Attach the Payment Receipt Image from the Student's Folder
         email = email_message.attach(MIMEText(html, "html"))
         filenames = first_name + " " + last_name + " Payment " + str(payment_count - 1) + " of " + str(name_count[self.database.iloc[x]["First Name"]]) + ".jpg"
+        filenames_jpeg = first_name + " " + last_name + " Payment " + str(payment_count - 1) + " of " + str(name_count[self.database.iloc[x]["First Name"]]) + ".jpg"
         attachmentPath = localpath + first_name + " " + last_name + "/Payments/" + filenames
 
         try:
@@ -157,7 +158,11 @@ class Email:
                 p.add_header('Content-Disposition', 'attachment', filename= filenames)
             email_message.attach(p)
         except Exception as e:
-            raise
+            with open(attachmentPath, "rb") as attachment:
+                p = MIMEApplication(attachment. read(),_subtype="pdf")
+                p.add_header('Content-Disposition', 'attachment', filename= filenames_jpeg)
+            email_message.attach(p)
+            
 
         # Convert it as a string
         msg_full = email_message.as_string()
@@ -343,8 +348,7 @@ def main():
     current_date = today.strftime("%d/%m/%Y")
     current_date = datetime.strptime(current_date, '%d/%m/%Y').date()
 
-
-
+    print(data.database)
     for x in range(1, len(due_date_list)):
 
         first_name = data.database.iloc[x]["First Name"]
@@ -357,12 +361,12 @@ def main():
         due_date_payment = datetime.strptime(due_date_list[x], '%d/%m/%Y').date()
         due_date_less_7_days = due_date_payment - timedelta(days=8)
         current_date_plus_7_days = current_date + timedelta(days=8)
-
-        print(due_date_payment, "is the payment date")
-        if current_status == "Paid":
+        print(due_date_less_7_days, last_name)
+        # print(due_date_payment, "is the payment date")
+        if current_status == "Paid":    
             payment_count = data.get_payment_count(first_name, due_date_list)
             data.send_payment_email_agent(first_name, last_name, due_date_payment, due_amount, student_email, payment_count, name_count, school, x)
-            data.database.at[x,"Status"] = "Sent to" + supplier_agent_name
+            data.database.at[x,"Status"] = "Sent to " + supplier_agent_name
         
         elif current_status == "Direct Payment":
             payment_count = data.get_payment_count(first_name, due_date_list)
@@ -385,6 +389,7 @@ def main():
 
 
     data.update_sheet(data.database)
+
 
 if __name__ == "__main__":
     main()
