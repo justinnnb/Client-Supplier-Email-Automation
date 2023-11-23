@@ -17,41 +17,46 @@ from gspread_dataframe import get_as_dataframe, set_with_dataframe
 from datetime import date
 import json
 
-
-with open('../../Json/keys.json') as f:
-    config = json.load(f)
-
-company_email = config['company_email']
-emailUsed = config['jane_email']
-# emailUsed = config['test_email']
-test_email = config['test_email']
-sheets_key = config['sheets_key']
-staff_name = config['staff_name']
-staff_email = config['staff_name']
-staff_mobile = config['staff_mobile']
-localpath = config['localpath']
-company_email_password = config['company_email_password']
-commission_rates = config['commission_rates']
-supplier_agent_name = config['supplier_agent_name']
-bank_account_name = config['bank_account_name']
-bank_bsb = config['bank_bsb']
-bank_account_number = config['bank_account_number']
-
-class Email:
+class Details:
     def __init__(self):
-        
-        SERVICE_ACCOUNT_FILE = "../../Json/keys.json"
-        SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
+        with open('../../../../Json/keys.json') as f:
+        # with open('../../Json/keys.json') as f:
+            config = json.load(f)
 
+            self.company_email = config['company_email']
+            # self.emailUsed = config['jane_email']
+            self.emailUsed = config['test_email']
+            self.test_email = config['test_email']
+            self.sheets_key = config['sheets_key']
+            self.staff_name = config['staff_name']
+            self.staff_email = config['staff_name']
+            self.staff_mobile = config['staff_mobile']
+            self.localpath = config['localpath']
+            self.company_email_password = config['company_email_password']
+            self.commission_rates = config['commission_rates']
+            self.supplier_agent_name = config['supplier_agent_name']
+            self.bank_account_name = config['bank_account_name']
+            self.bank_bsb = config['bank_bsb']
+            self.bank_account_number = config['bank_account_number']
+        
+
+class Sheet:
+    def __init__(self):
+        self.details = Details()
+        SERVICE_ACCOUNT_FILE = "../../../../Json/keys.json"
+        SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
         self.credentials = None
         self.credentials = service_account.Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=SCOPES)
-        self.clients_list_sheet = sheets_key
-        service = build("sheets", "v4", credentials=self.credentials)
-        sheet = service.spreadsheets()
+        self.clients_list_sheet = self.details.sheets_key
+        self.service = build("sheets", "v4", credentials=self.credentials)
+
+    def get_data(self):
+        sheet = self.service.spreadsheets()
         result = sheet.values().get(spreadsheetId=self.clients_list_sheet, range="Payment Plan").execute()
         values = result.get('values', [])
         self.database = pd.DataFrame(values)
         self.database.columns = ["First Name", "Last Name", "Due Date", "Amount Due", "Payment Number", "School", "Status", "Student Email", "Estimated Commission", "Test"]
+        return self.database
 
     def update_sheet(self, database):
         gc = gspread.authorize(self.credentials)
@@ -92,15 +97,21 @@ class Email:
                 self.database.at[x,"Payment Number"] = counter
 
                 
+class Email:
+    def __init__(self, data_sheet, details):
+        self.details = Details()
+        self.data_sheet = data_sheet
+        self.details = details
+
     def send_payment_email_agent(self, first_name, last_name, due_date_payment, due_amount, student_email, payment_count, name_count, school, x):
         
         # Initialise email creation
         email_message = MIMEMultipart("mixed")
-        email_message['From'] = company_email
-        email_message['To'] = emailUsed
-        email_message['Subject'] = first_name + " " + last_name + " | Payment Plan - " + str(due_date_payment) + " - " + str(payment_count - 1) + " of " + str(name_count[self.database.iloc[x]["First Name"]])
+        email_message['From'] = self.details.company_email
+        email_message['To'] = self.details.emailUsed
+        email_message['Subject'] = first_name + " " + last_name + " | Payment Plan - " + str(due_date_payment) + " - " + str(payment_count - 1) + " of " + str(name_count[self.data_sheet.iloc[x]["First Name"]])
 
-        with open('../../Json/Logo.jpg', 'rb') as f:
+        with open('../../../../Json/Logo.jpg', 'rb') as f:
             img_data = f.read()
         msgImage = MIMEImage(img_data)
         msgImage.add_header('Content-ID', '<msgImage>')
@@ -134,23 +145,23 @@ class Email:
             </body>
         </html>
         '''.format(
-            staff_name = staff_name,
-            staff_email = staff_email,
-            staff_mobile = staff_mobile,
+            staff_name = self.details.staff_name,
+            staff_email = self.details.staff_email,
+            staff_mobile = self.details.staff_mobile,
             first_name = first_name,
             last_name = last_name,
             school = school,
             due_date_payment = due_date_payment,
             due_amount = due_amount,
             payment_count = payment_count - 1,
-            total_payment_count = name_count[self.database.iloc[x]["First Name"]], 
+            total_payment_count = name_count[self.data_sheet.iloc[x]["First Name"]], 
         )
 
         # Attach the Payment Receipt Image from the Student's Folder
         email = email_message.attach(MIMEText(html, "html"))
-        filenames = first_name + " " + last_name + " Payment " + str(payment_count - 1) + " of " + str(name_count[self.database.iloc[x]["First Name"]]) + ".jpg"
-        filenames_jpeg = first_name + " " + last_name + " Payment " + str(payment_count - 1) + " of " + str(name_count[self.database.iloc[x]["First Name"]]) + ".jpg"
-        attachmentPath = localpath + first_name + " " + last_name + "/Payments/" + filenames
+        filenames = first_name + " " + last_name + " Payment " + str(payment_count - 1) + " of " + str(name_count[self.data_sheet.iloc[x]["First Name"]]) + ".jpg"
+        filenames_jpeg = first_name + " " + last_name + " Payment " + str(payment_count - 1) + " of " + str(name_count[self.data_sheet.iloc[x]["First Name"]]) + ".jpg"
+        attachmentPath = self.details.localpath + first_name + " " + last_name + "/Payments/" + filenames
 
         try:
             with open(attachmentPath, "rb") as attachment:
@@ -169,8 +180,8 @@ class Email:
 
         context = ssl.create_default_context()
         with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=context) as server:
-            server.login(company_email, company_email_password)
-            server.sendmail(company_email, emailUsed, msg_full)
+            server.login(self.details.company_email, self.details.company_email_password)
+            server.sendmail(self.details.company_email, self.details.emailUsed, msg_full)
 
     def send_direct_payment_email_agent(self, first_name, last_name, due_date_payment, due_amount, student_email, payment_count, name_count, school, x):
         
@@ -178,7 +189,7 @@ class Email:
         email_message = MIMEMultipart("mixed")
         email_message['From'] = company_email
         email_message['To'] = emailUsed
-        email_message['Subject'] = first_name + " " + last_name + " | Direct to School Payment | Payment Plan - " + str(due_date_payment) + " - " + str(payment_count - 1) + " of " + str(name_count[self.database.iloc[x]["First Name"]])
+        email_message['Subject'] = first_name + " " + last_name + " | Direct to School Payment | Payment Plan - " + str(due_date_payment) + " - " + str(payment_count - 1) + " of " + str(name_count[self.data_sheet.iloc[x]["First Name"]])
         
         #Read image and attach to email
         with open('../../Json/Logo.jpg', 'rb') as f:
@@ -224,12 +235,12 @@ class Email:
             due_date_payment = due_date_payment,
             due_amount = due_amount,
             payment_count = payment_count - 1,
-            total_payment_count = name_count[self.database.iloc[x]["First Name"]], 
+            total_payment_count = name_count[self.data_sheet.iloc[x]["First Name"]], 
         )
 
         # Attach the Payment Receipt Image from the Student's Folder
         email = email_message.attach(MIMEText(html, "html"))
-        filenames = first_name + " " + last_name + " Payment " + str(payment_count - 1) + " of " + str(name_count[self.database.iloc[x]["First Name"]]) + ".jpg"
+        filenames = first_name + " " + last_name + " Payment " + str(payment_count - 1) + " of " + str(name_count[self.data_sheet.iloc[x]["First Name"]]) + ".jpg"
 
         try:
             with open(attachmentPath, "rb") as attachment:
@@ -251,13 +262,13 @@ class Email:
     
     # Generate today's date to be included in the email Subject
         email_message = MIMEMultipart()
-        email_message['From'] = company_email
+        email_message['From'] = self.details.company_email
         # email_message['To'] = test_email
         email_message['To'] = student_email
-        email_message['Subject'] = first_name + " - Tuition Fees due on " + str(due_date_payment) + " | Payment " + str(payment_count) + " of " + str(name_count[self.database.iloc[x]["First Name"]])
+        email_message['Subject'] = first_name + " - Tuition Fees due on " + str(due_date_payment) + " | Payment " + str(payment_count) + " of " + str(name_count[self.data_sheet.iloc[x]["First Name"]])
 
         # Attach the html doc defined earlier, as a MIMEText html content type to the MIME message
-        with open('../../Json/Logo.jpg', 'rb') as f:
+        with open('../../../../Json/Logo.jpg', 'rb') as f:
             img_data = f.read()
         msgImage = MIMEImage(img_data)
         msgImage.add_header('Content-ID', '<msgImage>')
@@ -291,12 +302,12 @@ class Email:
             </body>
         </html>
         '''.format(
-            bank_account_name = bank_account_name,
-            bank_bsb = bank_bsb,
-            bank_account_number = bank_account_number,
-            staff_name = staff_name,
-            staff_email = staff_email,
-            staff_mobile = staff_mobile,         
+            bank_account_name = self.details.bank_account_name,
+            bank_bsb = self.details.bank_bsb,
+            bank_account_number = self.details.bank_account_number,
+            staff_name = self.details.staff_name,
+            staff_email = self.details.staff_email,
+            staff_mobile = self.details.staff_mobile,         
             first_name = first_name,
             due_date_payment = due_date_payment,
             due_amount = due_amount
@@ -313,15 +324,15 @@ class Email:
         # Connect to the Gmail SMTP server and Send Email
         context = ssl.create_default_context()
         with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=context) as server:
-            server.login(company_email, company_email_password)
+            server.login(self.details.company_email, self.details.company_email_password)
             print(student_email)
-            server.sendmail(company_email, student_email, email_string)
+            server.sendmail(self.details.company_email, student_email, email_string)
             # server.sendmail(company_email, test_email, email_string)
     
 def commission_calculator():
 
 
-    data = Email()
+    data = Sheet()
     due_date_list = data.get_data_to_list("Due Date")
         # Add more vendors and rates as needed
     
@@ -335,7 +346,11 @@ def commission_calculator():
 
 
 def main():
-    data = Email()
+    # details = Details()
+    data = Sheet()
+    data_sheet = data.get_data()
+    details = Details()
+    email = Email(data_sheet, details)
     due_date_list = data.get_data_to_list("Due Date")
     student_email_list = data.get_data_to_list("Student Email")
     first_name_list = data.get_data_to_list("First Name")
@@ -348,7 +363,7 @@ def main():
     current_date = today.strftime("%d/%m/%Y")
     current_date = datetime.strptime(current_date, '%d/%m/%Y').date()
 
-    print(data.database)
+    # print(data.database)
     for x in range(1, len(due_date_list)):
 
         first_name = data.database.iloc[x]["First Name"]
@@ -365,13 +380,13 @@ def main():
         # print(due_date_payment, "is the payment date")
         if current_status == "Paid":    
             payment_count = data.get_payment_count(first_name, due_date_list)
-            data.send_payment_email_agent(first_name, last_name, due_date_payment, due_amount, student_email, payment_count, name_count, school, x)
-            data.database.at[x,"Status"] = "Sent to " + supplier_agent_name
+            email.send_payment_email_agent(first_name, last_name, due_date_payment, due_amount, student_email, payment_count, name_count, school, x)
+            # data.database.at[x,"Status"] = "Sent to " + supplier_agent_name
         
         elif current_status == "Direct Payment":
             payment_count = data.get_payment_count(first_name, due_date_list)
             data.send_direct_payment_email_agent(first_name, last_name, due_date_payment, due_amount, student_email, payment_count, name_count, school, x)
-            data.database.at[x,"Status"] = "Sent to " + supplier_agent_name + " - Direct Payment"
+            # data.database.at[x,"Status"] = "Sent to " + supplier_agent_name + " - Direct Payment"
         
         elif current_status == "Followed Up":
             break
@@ -381,7 +396,7 @@ def main():
             if data.database.iloc[x]["Status"] == "": # if Status
                 # print(first_name,  ": ", due_date_payment)
                 payment_count = data.get_payment_count(first_name, due_date_list)
-                data.send_email_to_student(first_name, due_date_payment, due_amount, student_email, payment_count, name_count, x, due_date_list)
+                email.send_email_to_student(first_name, due_date_payment, due_amount, student_email, payment_count, name_count, x, due_date_list)
                 data.database.at[x,"Status"] = "Followed up"
         else:
             break
