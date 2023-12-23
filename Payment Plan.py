@@ -24,8 +24,8 @@ class Details:
             config = json.load(f)
 
             self.company_email = config['company_email']
-            # self.emailUsed = config['jane_email']
-            self.emailUsed = config['test_email']
+            self.emailUsed = config['jane_email']
+            # self.emailUsed = config['test_email']
             self.test_email = config['test_email']
             self.sheets_key = config['sheets_key']
             self.staff_name = config['staff_name']
@@ -366,6 +366,7 @@ def main():
     # print(data.database)
     for x in range(1, len(due_date_list)):
 
+
         first_name = data.database.iloc[x]["First Name"]
         last_name = data.database.iloc[x]["Last Name"]
         school = data.database.iloc[x]["School"]
@@ -376,17 +377,22 @@ def main():
         due_date_payment = datetime.strptime(due_date_list[x], '%d/%m/%Y').date()
         due_date_less_7_days = due_date_payment - timedelta(days=8)
         current_date_plus_7_days = current_date + timedelta(days=8)
-        print(due_date_less_7_days, last_name)
+        
+        # print(due_date_less_7_days, last_name)
         # print(due_date_payment, "is the payment date")
         if current_status == "Paid":    
             payment_count = data.get_payment_count(first_name, due_date_list)
             email.send_payment_email_agent(first_name, last_name, due_date_payment, due_amount, student_email, payment_count, name_count, school, x)
-            # data.database.at[x,"Status"] = "Sent to " + supplier_agent_name
+            data.database.at[x,"Status"] = "Sent to " + details.supplier_agent_name
+            data.update_sheet(data.database)
+
         
         elif current_status == "Direct Payment":
             payment_count = data.get_payment_count(first_name, due_date_list)
             data.send_direct_payment_email_agent(first_name, last_name, due_date_payment, due_amount, student_email, payment_count, name_count, school, x)
-            # data.database.at[x,"Status"] = "Sent to " + supplier_agent_name + " - Direct Payment"
+            data.database.at[x,"Status"] = "Sent to " + supplier_agent_name + " - Direct Payment"
+            data.update_sheet(data.database)
+
         
         elif current_status == "Followed Up":
             break
@@ -394,17 +400,18 @@ def main():
         # elif current_date_plus_7_days > due_date_payment: # if Due Date is in the next 7 days
         elif current_date > due_date_less_7_days: # if Due Date is in the next 7 days
             if data.database.iloc[x]["Status"] == "": # if Status
-                # print(first_name,  ": ", due_date_payment)
+                print(first_name,  ": ", due_date_payment)
                 payment_count = data.get_payment_count(first_name, due_date_list)
                 email.send_email_to_student(first_name, due_date_payment, due_amount, student_email, payment_count, name_count, x, due_date_list)
                 data.database.at[x,"Status"] = "Followed up"
+                data.update_sheet(data.database)
+
         else:
             break
     #Update the Google Sheet after everything is checked
 
 
     data.update_sheet(data.database)
-
 
 if __name__ == "__main__":
     main()
