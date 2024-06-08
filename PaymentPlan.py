@@ -16,6 +16,8 @@ import base64
 from gspread_dataframe import get_as_dataframe, set_with_dataframe
 from datetime import date
 import json
+import os
+import glob
 
 
 with open('../../Json/keys.json') as f:
@@ -94,11 +96,13 @@ class Email:
                 
     def send_payment_email_agent(self, first_name, last_name, due_date_payment, due_amount, student_email, payment_count, name_count, school, x):
         
+
         # Initialise email creation
         email_message = MIMEMultipart("mixed")
         email_message['From'] = company_email
         email_message['To'] = emailUsed
         email_message['Subject'] = first_name + " " + last_name + " | Payment Plan - " + str(due_date_payment) + " - " + str(payment_count - 1) + " of " + str(name_count[self.database.iloc[x]["First Name"]])
+    
 
         with open('../../Json/Logo.jpg', 'rb') as f:
             img_data = f.read()
@@ -149,28 +153,66 @@ class Email:
         # Attach the Payment Receipt Image from the Student's Folder
         email = email_message.attach(MIMEText(html, "html"))
         filenames = first_name + " " + last_name + " Payment " + str(payment_count - 1) + " of " + str(name_count[self.database.iloc[x]["First Name"]]) + ".jpg"
-        filenames_jpeg = first_name + " " + last_name + " Payment " + str(payment_count - 1) + " of " + str(name_count[self.database.iloc[x]["First Name"]]) + ".jpg"
-        attachmentPath = localpath + first_name + " " + last_name + "/Payments/" + filenames
+        newStudentReceiptFile = localpath + first_name + " " + last_name + "/Payments/Current/" + filenames
+        studentFolderPath = localpath + first_name + " " + last_name + "/Payments"
 
-        try:
-            with open(attachmentPath, "rb") as attachment:
-                p = MIMEApplication(attachment. read(),_subtype="pdf")
-                p.add_header('Content-Disposition', 'attachment', filename= filenames)
-            email_message.attach(p)
-        except Exception as e:
-            with open(attachmentPath, "rb") as attachment:
-                p = MIMEApplication(attachment. read(),_subtype="pdf")
-                p.add_header('Content-Disposition', 'attachment', filename= filenames_jpeg)
-            email_message.attach(p)
-            
+        # Create current folder
+        if not os.path.exists(studentFolderPath + "/Current"):
+            os.makedirs(studentFolderPath + "/Current")
+        
+        def find_image_files(directory):
+            patterns = ['*.jpg', '*.jpeg', '*.png', '*.JPG', '*.JPEG', '*.PNG']
+            found_files = []
 
-        # Convert it as a string
-        msg_full = email_message.as_string()
+            for pattern in patterns:
+                path_pattern = os.path.join(directory, pattern)
+                found_files.extend(glob.glob(path_pattern))
 
-        context = ssl.create_default_context()
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=context) as server:
-            server.login(company_email, company_email_password)
-            server.sendmail(company_email, emailUsed, msg_full)
+            if found_files:
+                # print('Found files:', found_files)
+                return [os.path.basename(file) for file in found_files]
+            else:
+                print('No files')
+                return None
+
+        studentReceiptFile = find_image_files(studentFolderPath)
+
+        if studentReceiptFile:
+            newStudentReceiptFile = studentFolderPath + "/" + filenames
+
+            try:
+                os.rename(studentFolderPath + "/" + studentReceiptFile[0], newStudentReceiptFile)
+                with open(newStudentReceiptFile, "rb") as attachment:
+                    p = MIMEApplication(attachment. read(),_subtype="pdf")
+                    p.add_header('Content-Disposition', 'attachment', filename= filenames)
+                email_message.attach(p)
+
+                # Convert it as a string
+                msg_full = email_message.as_string()
+
+                context = ssl.create_default_context()
+                with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=context) as server:
+                    server.login(company_email, company_email_password)
+                    server.sendmail(company_email, emailUsed, msg_full)
+                
+            except Exception as e:
+                print(e)
+                
+            newStudentReceiptFile = studentFolderPath + "/Current/" + filenames
+
+            if os.path.exists(newStudentReceiptFile):
+                dupStudentReceiptFile = newStudentReceiptFile
+                newStudentReceiptFile = studentFolderPath + "/Current/AA " + filenames
+                os.rename(dupStudentReceiptFile, newStudentReceiptFile)
+            else:
+                os.rename(studentFolderPath + "/" + filenames, newStudentReceiptFile)
+            return True
+        else:
+            print("No Receipt Found")
+            return False
+
+
+
 
     def send_direct_payment_email_agent(self, first_name, last_name, due_date_payment, due_amount, student_email, payment_count, name_count, school, x):
         
@@ -236,18 +278,18 @@ class Email:
                 p = MIMEApplication(attachment. read(),_subtype="pdf")
                 p.add_header('Content-Disposition', 'attachment', filename= filenames)
             email_message.attach(p)
+            # Convert it as a string
+            msg_full = email_message.as_string()
+            context = ssl.create_default_context()
+            with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=context) as server:
+                server.login(company_email, company_email_password)
+                server.sendmail(company_email, emailUsed, msg_full)
         except Exception as e:
             raise
 
-        # Convert it as a string
-        msg_full = email_message.as_string()
 
-        context = ssl.create_default_context()
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=context) as server:
-            server.login(company_email, company_email_password)
-            server.sendmail(company_email, emailUsed, msg_full)
 
-    def send_email_to_student(self, first_name, due_date_payment, due_amount, student_email, payment_count, name_count, x, due_date_list):
+    def send_email_to_student(self, first_name, last_name, due_date_payment, due_amount, student_email, payment_count, name_count, x, due_date_list):
     
     # Generate today's date to be included in the email Subject
         email_message = MIMEMultipart()
@@ -274,9 +316,10 @@ class Email:
             <br>BSB: {bank_bsb}
             <br>Account Number: {bank_account_number}
             <br>Amount:  <b><ins>{due_amount}</b></ins>
-            <br>Reference: Payment Plan 
+            <br>Reference: {last_name} {first_name}
             <br>
             <br>Kindly send a screenshot of the payment proof by replying to this email. 
+            <br> <b><ins>Don't forget to include your full name as the payment reference.</b></ins>
             <br>
             <br>Thank you very much.
             <br>
@@ -298,6 +341,7 @@ class Email:
             staff_email = staff_email,
             staff_mobile = staff_mobile,         
             first_name = first_name,
+            last_name = last_name,
             due_date_payment = due_date_payment,
             due_amount = due_amount
         )
@@ -314,13 +358,15 @@ class Email:
         context = ssl.create_default_context()
         with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=context) as server:
             server.login(company_email, company_email_password)
-            print(student_email)
-            server.sendmail(company_email, student_email, email_string)
+            if student_email == "":
+                print(student_email)
+                print(first_name, last_name, ' blank email. Please check.')
+            else:
+                print(student_email)
+                server.sendmail(company_email, student_email, email_string)
             # server.sendmail(company_email, test_email, email_string)
     
 def commission_calculator():
-
-
     data = Email()
     due_date_list = data.get_data_to_list("Due Date")
         # Add more vendors and rates as needed
@@ -330,27 +376,21 @@ def commission_calculator():
         payment = data.database.iloc[x]["Amount Due"]   
         commission =  float(payment) * float(commission_rates.get(school, 0))
         data.database.at[x,"Test"] = commission
-
     data.update_sheet(data.database)
 
-
-def main():
+def check_database_and_send_email():
     data = Email()
     due_date_list = data.get_data_to_list("Due Date")
     student_email_list = data.get_data_to_list("Student Email")
     first_name_list = data.get_data_to_list("First Name")
     due_amount = data.get_column("Amount Due")
-    
     name_list = data.database.iloc[:,0]
     name_count = Counter(name_list)
-
     today = date.today()
     current_date = today.strftime("%d/%m/%Y")
     current_date = datetime.strptime(current_date, '%d/%m/%Y').date()
 
-    print(data.database)
     for x in range(1, len(due_date_list)):
-
         first_name = data.database.iloc[x]["First Name"]
         last_name = data.database.iloc[x]["Last Name"]
         school = data.database.iloc[x]["School"]
@@ -360,18 +400,22 @@ def main():
         due_amount = data.database.iloc[x]["Amount Due"]
         due_date_payment = datetime.strptime(due_date_list[x], '%d/%m/%Y').date()
         due_date_less_7_days = due_date_payment - timedelta(days=8)
-        current_date_plus_7_days = current_date + timedelta(days=8)
+        current_date_plus_8_days = current_date + timedelta(days=8)
         print(due_date_less_7_days, last_name)
         # print(due_date_payment, "is the payment date")
         if current_status == "Paid":    
             payment_count = data.get_payment_count(first_name, due_date_list)
-            data.send_payment_email_agent(first_name, last_name, due_date_payment, due_amount, student_email, payment_count, name_count, school, x)
-            data.database.at[x,"Status"] = "Sent to " + supplier_agent_name
+            if (data.send_payment_email_agent(first_name, last_name, due_date_payment, due_amount, student_email, payment_count, name_count, school, x)):
+                data.database.at[x,"Status"] = "Sent to " + supplier_agent_name
+            else:
+                data.database.at[x,"Status"] =  "No Receipt Found"
         
         elif current_status == "Direct Payment":
             payment_count = data.get_payment_count(first_name, due_date_list)
-            data.send_direct_payment_email_agent(first_name, last_name, due_date_payment, due_amount, student_email, payment_count, name_count, school, x)
-            data.database.at[x,"Status"] = "Sent to " + supplier_agent_name + " - Direct Payment"
+            if data.send_direct_payment_email_agent(first_name, last_name, due_date_payment, due_amount, student_email, payment_count, name_count, school, x):
+                data.database.at[x,"Status"] = "Sent to " + supplier_agent_name + " - Direct Payment"
+            else:
+                data.database.at[x,"Status"] =  "No Receipt Found"
         
         elif current_status == "Followed Up":
             break
@@ -381,15 +425,16 @@ def main():
             if data.database.iloc[x]["Status"] == "": # if Status
                 # print(first_name,  ": ", due_date_payment)
                 payment_count = data.get_payment_count(first_name, due_date_list)
-                data.send_email_to_student(first_name, due_date_payment, due_amount, student_email, payment_count, name_count, x, due_date_list)
+                data.send_email_to_student(first_name, last_name, due_date_payment, due_amount, student_email, payment_count, name_count, x, due_date_list)
                 data.database.at[x,"Status"] = "Followed up"
         else:
             break
     #Update the Google Sheet after everything is checked
-
-
     data.update_sheet(data.database)
 
+
+def main():
+    check_database_and_send_email()
 
 if __name__ == "__main__":
     main()
