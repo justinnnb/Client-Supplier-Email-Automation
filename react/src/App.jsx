@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import reactLogo from './assets/react.svg'
 import viteLogo from '/vite.svg'
 import './App.css'
@@ -12,12 +12,12 @@ function App() {
       const token = queryParams.get('token');
       setToken(token);
   }, []);
-  console.log('test')
 
   return (
     <>
       <div className="App">
-      <h1>Payment System Test token</h1>
+      <h1>Payment System</h1>
+      {token ? <h2>Token: {token}</h2> : <h1>No Token</h1>}
       <UploadReceipt />
     </div>
     </>
