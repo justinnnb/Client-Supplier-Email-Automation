@@ -67,8 +67,11 @@ def send_email():
         server.sendmail(company_email, student_email, email_message.as_string())
     return jsonify({"message": "Email sent successfully"}), 200
 
-@app.route('/api/upload-screenshot', methods=['POST'])
-def upload_screenshot():
+
+
+@app.route('/upload_payment/<token>', methods=['POST'])
+def upload_payment(token):
+
     file = request.files['file']
     student_name = request.form['student_name']
     folder_id = request.form['folder_id']
@@ -83,6 +86,9 @@ def upload_screenshot():
     file_drive = drive_service.files().create(body=file_metadata, media_body=media, fields='id').execute()
 
     return jsonify({"file_id": file_drive.get('id')}), 200
+
+
+
 
 if __name__ == '__main__':
     app.run(debug=True)
