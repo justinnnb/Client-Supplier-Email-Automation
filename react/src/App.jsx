@@ -17,8 +17,7 @@ function App() {
   return (
     <>
       <div className="App">
-      <h1>Payment System</h1>
-      {token ? <h2>Token: {token}</h2> : <h1>No Token</h1>}
+      <h1>Payment System Test token</h1>
       <UploadReceipt />
     </div>
     </>
