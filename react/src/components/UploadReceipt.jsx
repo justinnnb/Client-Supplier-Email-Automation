@@ -17,7 +17,7 @@ const UploadReceipt = (token) => {
     try {
       // const response = await axios.post(`${import.meta.env.VITE_API_URL}/upload_payment`, formData, {
 
-      const response = await axios.post(`http://127.0.0.1:5010/api/upload_payment`, formData, {
+      const response = await axios.post(`https://tns-api.vercel.app/api/upload_payment`, formData, {
         headers: {
           // 'method': 'POST',
           // 'Access-Control-Allow-Headers': 'Origin, Content-Type, X-Auth-Token',
