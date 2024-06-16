@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 
-const UploadReceipt = () => {
+const UploadReceipt = (token) => {
   const [file, setFile] = useState(null);
 
   const handleFileChange = (e) => {
@@ -12,16 +12,22 @@ const UploadReceipt = () => {
     e.preventDefault();
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('student_name', 'John Doe'); // Replace with actual data
-    formData.append('folder_id', 'your_google_drive_folder_id'); // Replace with actual folder ID
+    formData.append('token', token.token);
 
     try {
-      const response = await axios.post(`${import.meta.env.VITE_API_URL}/api/upload-screenshot`, formData, {
+      // const response = await axios.post(`${import.meta.env.VITE_API_URL}/upload_payment`, formData, {
+
+      const response = await axios.post(`http://127.0.0.1:5010/api/upload_payment`, formData, {
         headers: {
+          // 'method': 'POST',
+          // 'Access-Control-Allow-Headers': 'Origin, Content-Type, X-Auth-Token',
+          // 'Access-Control-Allow-Origin': 'http://127.0.0.1:5173/',
           'Content-Type': 'multipart/form-data',
-          'Authorization': `Bearer ${import.meta.env.VITE_API_KEY}`
+          'Authorization': `Bearer ${token.token}`,
+          // 'mode': 'cors',
+          
         }
-      });
+      }); 
       console.log('File uploaded successfully:', response.data);
     } catch (error) {
       console.error('Error uploading file:', error);
